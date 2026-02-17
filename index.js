@@ -9,9 +9,9 @@ const {
 } = require('discord.js');
 
 // Lecture fichiers
-const TOKEN = fs.readFileSync('TOKEN.txt', 'utf8').trim();
-const GUILD_ID = fs.readFileSync('SERVEUR.txt', 'utf8').trim();
-const ROLE_ID_FONDATEUR = fs.readFileSync('FONDATEUR.txt', 'utf8').trim();
+const TOKEN = process.env.TOKEN;
+const GUILD_ID = process.env.GUILD_ID;
+const ROLE_ID_FONDATEUR = process.env.ROLE_ID_FONDATEUR;
 
 const CATEGORY_NAME = "Gestion";
 const CHANNEL_NAME = "problèmes-membres";
