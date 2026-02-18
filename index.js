@@ -1,158 +1,178 @@
-const fs = require('fs');
-const { 
-    Client, 
-    GatewayIntentBits, 
-    Events, 
-    SlashCommandBuilder,
+require("dotenv").config();
+
+const {
+    Client,
+    GatewayIntentBits,
     ChannelType,
-    PermissionFlagsBits
-} = require('discord.js');
-
-// Lecture fichiers
-const TOKEN = fs.readFileSync('TOKEN.txt', 'utf8').trim();
-const GUILD_ID = fs.readFileSync('SERVEUR.txt', 'utf8').trim();
-const ROLE_ID_FONDATEUR = fs.readFileSync('FONDATEUR.txt', 'utf8').trim();
-
-const CATEGORY_NAME = "Gestion";
-const CHANNEL_NAME = "problèmes-membres";
-const GENERAL_CHANNEL = "bot";
-
-const INSULTES = ["merde", "salope", "connard"];
+    PermissionsBitField,
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle
+} = require("discord.js");
 
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildMembers
+        GatewayIntentBits.MessageContent
     ]
 });
 
-// Slash command
-const commands = [
-    new SlashCommandBuilder()
-        .setName('probleme')
-        .setDescription('Signaler un problème')
-];
 
-client.once(Events.ClientReady, async c => {
+// VARIABLES ENVIRONNEMENT
 
-    console.log(`Connecté en tant que ${c.user.tag}`);
+const TOKEN = process.env.TOKEN;
+const GUILD_ID = process.env.GUILD_ID;
+const AUTO_ROLE_ID = process.env.AUTO_ROLE_ID;
+const TICKET_CATEGORY_ID = process.env.TICKET_CATEGORY_ID;
+const TICKET_MESSAGE = process.env.TICKET_MESSAGE;
+const WELCOME_MESSAGE = process.env.WELCOME_MESSAGE;
+const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID;
+const BAD_WORDS = process.env.BAD_WORDS.split(",");
 
-    const guild = client.guilds.cache.get(GUILD_ID);
 
-    if (!guild) {
-        console.log("Serveur introuvable");
-        return;
-    }
+// BOT READY
 
-    await guild.commands.set(commands);
+client.once("ready", () => {
 
-    console.log("Commandes enregistrées");
+    console.log(`Connecté en tant que ${client.user.tag}`);
 
-    const general = guild.channels.cache.find(
-        ch => ch.name === GENERAL_CHANNEL && ch.type === ChannelType.GuildText
-    );
-
-    if (general)
-        general.send("Je suis en ligne !");
 });
 
 
-// Détection insultes
-client.on(Events.MessageCreate, message => {
+// ROLE AUTOMATIQUE
+
+client.on("guildMemberAdd", async member => {
+
+    try {
+
+        const role = member.guild.roles.cache.get(AUTO_ROLE_ID);
+
+        if (role) {
+
+            await member.roles.add(role);
+
+            console.log("Role auto donné");
+
+        }
+
+        const logChannel = member.guild.channels.cache.get(LOG_CHANNEL_ID);
+
+        if (logChannel) {
+
+            logChannel.send(`${WELCOME_MESSAGE} ${member.user}`);
+
+        }
+
+    } catch (error) {
+
+        console.log(error);
+
+    }
+
+});
+
+
+// AUTO MODERATION
+
+client.on("messageCreate", async message => {
 
     if (message.author.bot) return;
 
-    const contenu = message.content.toLowerCase();
+    const content = message.content.toLowerCase();
 
-    if (INSULTES.some(mot => contenu.includes(mot))) {
+    if (BAD_WORDS.some(word => content.includes(word))) {
 
-        message.reply("Attention à ton langage.");
+        await message.delete();
+
+        message.channel.send("Message supprimé")
+        .then(msg => setTimeout(() => msg.delete(), 3000));
+
     }
 
 });
 
 
-// Commande /probleme
-client.on(Events.InteractionCreate, async interaction => {
+// COMMANDE PANEL TICKET
 
-    if (!interaction.isChatInputCommand()) return;
+client.on("messageCreate", async message => {
 
-    if (interaction.commandName === 'probleme') {
+    if (message.content === "!panel") {
 
-        const guild = interaction.guild;
+        const button = new ButtonBuilder()
+            .setCustomId("ticket_create")
+            .setLabel("Créer un ticket")
+            .setStyle(ButtonStyle.Primary);
 
-        if (!guild) return;
+        const row = new ActionRowBuilder()
+            .addComponents(button);
 
-        const category = guild.channels.cache.find(
-            c => c.name === CATEGORY_NAME && c.type === ChannelType.GuildCategory
+        message.channel.send({
+            content: TICKET_MESSAGE,
+            components: [row]
+        });
+
+    }
+
+});
+
+
+// CREATION TICKET
+
+client.on("interactionCreate", async interaction => {
+
+    if (!interaction.isButton()) return;
+
+    if (interaction.customId === "ticket_create") {
+
+        const existing = interaction.guild.channels.cache.find(
+            c => c.name === `ticket-${interaction.user.id}`
         );
 
-        if (!category) {
+        if (existing) {
 
-            interaction.reply({
-                content: "Catégorie introuvable",
+            return interaction.reply({
+                content: "Ticket déjà existant",
                 ephemeral: true
             });
 
-            return;
         }
 
-        let channel = guild.channels.cache.find(
-            c => c.name === CHANNEL_NAME && c.parentId === category.id
-        );
+        const channel = await interaction.guild.channels.create({
 
-        if (!channel) {
+            name: `ticket-${interaction.user.id}`,
 
-            channel = await guild.channels.create({
+            type: ChannelType.GuildText,
 
-                name: CHANNEL_NAME,
-                type: ChannelType.GuildText,
-                parent: category.id,
+            parent: TICKET_CATEGORY_ID,
 
-                permissionOverwrites: [
+            permissionOverwrites: [
 
-                    {
-                        id: guild.id,
-                        deny: [PermissionFlagsBits.ViewChannel]
-                    },
+                {
+                    id: interaction.guild.id,
+                    deny: [PermissionsBitField.Flags.ViewChannel]
+                },
 
-                    {
-                        id: ROLE_ID_FONDATEUR,
-                        allow: [
-                            PermissionFlagsBits.ViewChannel,
-                            PermissionFlagsBits.SendMessages,
-                            PermissionFlagsBits.ReadMessageHistory
-                        ]
-                    }
+                {
+                    id: interaction.user.id,
+                    allow: [PermissionsBitField.Flags.ViewChannel]
+                }
 
-                ]
-
-            });
-
-        }
-
-        await channel.send({
-
-            content:
-            `Nouveau problème\n\n` +
-            `Utilisateur: ${interaction.user.tag}\n` +
-            `ID: ${interaction.user.id}\n` +
-            `<@&${ROLE_ID_FONDATEUR}>`
+            ]
 
         });
 
         interaction.reply({
-
-            content: "Ticket envoyé",
+            content: `Ticket créé : ${channel}`,
             ephemeral: true
-
         });
 
     }
 
 });
 
+
+// LOGIN
 
 client.login(TOKEN);
