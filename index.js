@@ -1,13 +1,31 @@
-const { PermissionsBitField, ChannelType } = require('discord.js');
+require("dotenv").config();
 
-const CATEGORY_ID = "1474094113979633724"; // remplace par l'ID de ta catégorie
-const FOUNDER_ID = "1472696242583900332"; // ton ID
+const { Client, GatewayIntentBits, PermissionsBitField, ChannelType } = require("discord.js");
 
-client.on('messageCreate', async (message) => {
+// crée le client
+const client = new Client({
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent
+    ]
+});
+
+const TOKEN = process.env.TOKEN;
+
+const CATEGORY_ID = "1474094113979633724";
+const FOUNDER_ID = "1472696242583900332";
+
+client.on("ready", () => {
+    console.log(`✅ Connecté en tant que ${client.user.tag}`);
+});
+
+client.on("messageCreate", async (message) => {
+
+    if (message.author.bot) return;
 
     if (message.content === "!ticket") {
 
-        // Vérifie si ticket existe déjà
         const existing = message.guild.channels.cache.find(
             c => c.name === `ticket-${message.author.username}`
         );
@@ -17,22 +35,16 @@ client.on('messageCreate', async (message) => {
             return;
         }
 
-        // Création du salon
         const channel = await message.guild.channels.create({
             name: `ticket-${message.author.username}`,
             type: ChannelType.GuildText,
-
-            parent: CATEGORY_ID, // ← met dans la catégorie
+            parent: CATEGORY_ID,
 
             permissionOverwrites: [
-
-                // cache à tout le monde
                 {
                     id: message.guild.id,
                     deny: [PermissionsBitField.Flags.ViewChannel],
                 },
-
-                // visible par la personne
                 {
                     id: message.author.id,
                     allow: [
@@ -41,8 +53,6 @@ client.on('messageCreate', async (message) => {
                         PermissionsBitField.Flags.ReadMessageHistory
                     ],
                 },
-
-                // visible par le fondateur (toi)
                 {
                     id: FOUNDER_ID,
                     allow: [
@@ -51,12 +61,12 @@ client.on('messageCreate', async (message) => {
                         PermissionsBitField.Flags.ReadMessageHistory
                     ],
                 }
-
             ],
         });
 
         channel.send(`🎫 Ticket créé par ${message.author}`);
         message.reply(`Ticket créé : ${channel}`);
     }
-
 });
+
+client.login(TOKEN);
