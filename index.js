@@ -1,7 +1,7 @@
 const { PermissionsBitField, ChannelType } = require('discord.js');
 
-const CATEGORY_ID = "ID_DE_TA_CATEGORIE"; // remplace par l'ID de ta catégorie
-const FOUNDER_ID = "TON_ID_DISCORD"; // ton ID
+const CATEGORY_ID = "1474094113979633724"; // remplace par l'ID de ta catégorie
+const FOUNDER_ID = "1472696242583900332"; // ton ID
 
 client.on('messageCreate', async (message) => {
 
